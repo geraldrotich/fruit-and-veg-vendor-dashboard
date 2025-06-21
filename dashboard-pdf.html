@@ -44,12 +44,20 @@
         lines.push(...items);
       }
 
-      // Join into one big string to extract PO number
       const fullText = lines.join(" ");
+
+      // ✅ Extract PO Number
       const poMatch = fullText.match(/Purchase Order (\d+)/i);
       const poNumber = poMatch ? poMatch[1] : "Unknown";
 
-      // Reconstruct multi-line product blocks
+      // ✅ Extract Vendor Name (1st line after "Ship-to Address")
+      let vendorName = "Unknown Vendor";
+      const shipToIndex = lines.findIndex(line => /Ship-to Address/i.test(line));
+      if (shipToIndex >= 0 && shipToIndex + 1 < lines.length) {
+        vendorName = lines[shipToIndex + 1].trim();
+      }
+
+      // ✅ Reconstruct product lines (handling multiline items)
       const blocks = [];
       let buffer = [];
 
@@ -69,7 +77,7 @@
       }
       if (buffer.length) blocks.push(buffer);
 
-      // Extract structured data from each block
+      // ✅ Extract data: Product ID, Item Name, Quantity
       const extractedRows = [];
 
       blocks.forEach(block => {
@@ -79,38 +87,34 @@
           const productId = match[1];
           const itemName = match[2].replace(/\s{2,}/g, " ");
           const quantity = match[3];
-
-          let vendor = "Unknown";
-          if (/kilimohai/i.test(itemName)) vendor = "Kilimohai";
-          else if (/sylvia/i.test(itemName)) vendor = "Sylvia Basket";
-
-          extractedRows.push({ productId, itemName, quantity, vendor });
+          extractedRows.push({ productId, itemName, quantity });
         }
       });
 
-      // Render table
+      // ✅ Display table
       let html = `<h3>PO Number: ${poNumber}</h3>`;
-      html += `<table><thead><tr><th>Product ID</th><th>Item Name</th><th>Quantity</th><th>Vendor</th></tr></thead><tbody>`;
+      html += `<h4>Vendor: ${vendorName}</h4>`;
+      html += `<table><thead><tr><th>Product ID</th><th>Item Name</th><th>Quantity</th></tr></thead><tbody>`;
       extractedRows.forEach(row => {
-        html += `<tr><td>${row.productId}</td><td>${row.itemName}</td><td>${row.quantity}</td><td>${row.vendor}</td></tr>`;
+        html += `<tr><td>${row.productId}</td><td>${row.itemName}</td><td>${row.quantity}</td></tr>`;
       });
       html += `</tbody></table>`;
       document.getElementById("outputTable").innerHTML = html;
 
-      // CSV Export
+      // ✅ Download as CSV
       const downloadBtn = document.getElementById("downloadBtn");
       if (extractedRows.length) {
         downloadBtn.style.display = "inline-block";
         downloadBtn.onclick = () => {
-          let csv = `PO Number,${poNumber}\n\nProduct ID,Item Name,Quantity,Vendor\n`;
+          let csv = `PO Number,${poNumber}\nVendor,${vendorName}\n\nProduct ID,Item Name,Quantity\n`;
           extractedRows.forEach(row => {
-            csv += `"${row.productId}","${row.itemName}","${row.quantity}","${row.vendor}"\n`;
+            csv += `"${row.productId}","${row.itemName}","${row.quantity}"\n`;
           });
           const blob = new Blob([csv], { type: "text/csv" });
           const url = URL.createObjectURL(blob);
           const a = document.createElement("a");
           a.href = url;
-          a.download = `PO_${poNumber}_Extract.csv`;
+          a.download = `PO_${poNumber}_${vendorName.replace(/\s+/g, '_')}.csv`;
           a.click();
           URL.revokeObjectURL(url);
         };
