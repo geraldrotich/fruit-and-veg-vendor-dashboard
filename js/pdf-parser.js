@@ -9,37 +9,38 @@ document.getElementById('pdfInput').addEventListener('change', async function ()
   for (let i = 1; i <= pdf.numPages; i++) {
     const page = await pdf.getPage(i);
     const textContent = await page.getTextContent();
-    fullText += textContent.items.map(item => item.str).join(" ") + "\n";
+    const pageText = textContent.items.map(item => item.str).join(" ");
+    fullText += pageText + "\n";
   }
 
-  // Extract PO Number
+  // ✅ Extract PO Number
   const poMatch = fullText.match(/Purchase Order (\d+)/i);
   const poNumber = poMatch ? poMatch[1] : "Unknown";
 
-  // Extract product lines
-  const lines = fullText.split("\n");
-  const productLines = lines.filter(line =>
-    /^\d{6,}/.test(line) && /\b(?:Piece|Kilo)\b/.test(line)
-  );
+  // ✅ Extract product lines: match ID, item, quantity
+  const productRegex = /(\d{6,}) ([^-\\n]+?)(?:-|\u2013)? [^\\n]+? (\d{1,5}) (?:Piece|Kilo)/g;
+  let match;
+  let rows = [];
 
-  // Build the table
+  while ((match = productRegex.exec(fullText)) !== null) {
+    const id = match[1].trim();
+    const name = match[2].trim();
+    const qty = match[3].trim();
+
+    let vendor = "Unknown";
+    if (/kilimohai/i.test(name)) vendor = "Kilimohai";
+    else if (/sylvia/i.test(name)) vendor = "Sylvia Basket";
+
+    rows.push({ id, name, qty, vendor });
+  }
+
+  // ✅ Display results
   let html = `<h3>PO Number: ${poNumber}</h3>`;
   html += "<table><thead><tr><th>Product ID</th><th>Item Name</th><th>Quantity</th><th>Vendor</th></tr></thead><tbody>";
-
-  productLines.forEach(line => {
-    const match = line.match(/^(\d{6,}) (.+?) (\d{1,5}) (?:Piece|Kilo)/);
-    if (match) {
-      const [_, id, name, qty] = match;
-
-      // Infer vendor from product name
-      let vendor = "Unknown";
-      if (name.toLowerCase().includes("kilimohai")) vendor = "Kilimohai";
-      else if (name.toLowerCase().includes("sylvia")) vendor = "Sylvia Basket";
-
-      html += `<tr><td>${id}</td><td>${name}</td><td>${qty}</td><td>${vendor}</td></tr>`;
-    }
+  rows.forEach(row => {
+    html += `<tr><td>${row.id}</td><td>${row.name}</td><td>${row.qty}</td><td>${row.vendor}</td></tr>`;
   });
-
   html += "</tbody></table>";
+
   document.getElementById("outputTable").innerHTML = html;
 });
