@@ -22,46 +22,50 @@
       const arrayBuffer = await file.arrayBuffer();
       const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
 
-      let fullText = "";
-      let reconstructedLines = [];
+      let lines = [];
 
       for (let i = 1; i <= pdf.numPages; i++) {
         const page = await pdf.getPage(i);
         const content = await page.getTextContent();
-
-        // Group words by their Y position (line height)
-        let lineMap = {};
-        content.items.forEach(item => {
-          const y = Math.floor(item.transform[5]); // vertical position
-          if (!lineMap[y]) lineMap[y] = [];
-          lineMap[y].push(item.str);
-        });
-
-        const lines = Object.keys(lineMap)
-          .sort((a, b) => b - a)
-          .map(y => lineMap[y].join(" "));
-        reconstructedLines.push(...lines);
+        const items = content.items.map(item => item.str.trim()).filter(Boolean);
+        lines.push(...items);
       }
 
-      fullText = reconstructedLines.join("\n");
-
-      // Extract PO Number
+      // Join into one big string to extract PO number
+      const fullText = lines.join(" ");
       const poMatch = fullText.match(/Purchase Order (\d+)/i);
       const poNumber = poMatch ? poMatch[1] : "Unknown";
 
-      // Filter product lines
-      const productLines = reconstructedLines.filter(line =>
-        /^\d{6}\s/.test(line) && /\b(Piece|Kilo)\b/.test(line)
-      );
+      // Reconstruct multi-line product blocks
+      const blocks = [];
+      let buffer = [];
 
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+
+        if (/^\d{6}\b/.test(line)) {
+          if (buffer.length) blocks.push(buffer);
+          buffer = [line];
+        } else if (/^\d+\s+(Piece|Kilo)/.test(line)) {
+          buffer.push(line);
+          blocks.push(buffer);
+          buffer = [];
+        } else {
+          buffer.push(line);
+        }
+      }
+      if (buffer.length) blocks.push(buffer);
+
+      // Extract structured data from each block
       const extractedRows = [];
 
-      productLines.forEach(line => {
-        const match = line.match(/^(\d{6})\s+(.+?)\s+(\d{1,5})\s+(?:Piece|Kilo)/);
+      blocks.forEach(block => {
+        const joined = block.join(" ");
+        const match = joined.match(/^(\d{6})\s+(.+?)\s+(\d{1,5})\s+(?:Piece|Kilo)/);
         if (match) {
-          const productId = match[1].trim();
-          const itemName = match[2].trim();
-          const quantity = match[3].trim();
+          const productId = match[1];
+          const itemName = match[2].replace(/\s{2,}/g, " ");
+          const quantity = match[3];
 
           let vendor = "Unknown";
           if (/kilimohai/i.test(itemName)) vendor = "Kilimohai";
@@ -71,7 +75,7 @@
         }
       });
 
-      // Display result
+      // Render table
       let html = `<h3>PO Number: ${poNumber}</h3>`;
       html += `<table><thead><tr><th>Product ID</th><th>Item Name</th><th>Quantity</th><th>Vendor</th></tr></thead><tbody>`;
       extractedRows.forEach(row => {
@@ -80,11 +84,11 @@
       html += `</tbody></table>`;
       document.getElementById("outputTable").innerHTML = html;
 
-      // Enable CSV download
+      // CSV Export
       const downloadBtn = document.getElementById("downloadBtn");
-      if (extractedRows.length > 0) {
+      if (extractedRows.length) {
         downloadBtn.style.display = "inline-block";
-        downloadBtn.onclick = function () {
+        downloadBtn.onclick = () => {
           let csv = `PO Number,${poNumber}\n\nProduct ID,Item Name,Quantity,Vendor\n`;
           extractedRows.forEach(row => {
             csv += `"${row.productId}","${row.itemName}","${row.quantity}","${row.vendor}"\n`;
@@ -99,7 +103,7 @@
         };
       } else {
         downloadBtn.style.display = "none";
-        alert("No valid product lines found in the PDF.");
+        alert("No product lines found.");
       }
     });
   </script>
