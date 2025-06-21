@@ -8,19 +8,12 @@
 <body>
   <div class="container">
     <h2>Upload Purchase Order (PDF)</h2>
-
-    <!-- File input and download button -->
     <input type="file" id="pdfInput" accept="application/pdf" />
     <button id="downloadBtn" style="display:none;">Download CSV</button>
-
-    <!-- Output goes here -->
     <div id="outputTable"></div>
   </div>
 
-  <!-- PDF.js -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
-
-  <!-- Your custom JS logic -->
   <script>
     document.getElementById('pdfInput').addEventListener('change', async function () {
       const file = this.files[0];
@@ -30,20 +23,36 @@
       const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
 
       let fullText = "";
+      let reconstructedLines = [];
+
       for (let i = 1; i <= pdf.numPages; i++) {
         const page = await pdf.getPage(i);
-        const textContent = await page.getTextContent();
-        const strings = textContent.items.map(item => item.str);
-        fullText += strings.join("\n") + "\n";
+        const content = await page.getTextContent();
+
+        // Group words by their Y position (line height)
+        let lineMap = {};
+        content.items.forEach(item => {
+          const y = Math.floor(item.transform[5]); // vertical position
+          if (!lineMap[y]) lineMap[y] = [];
+          lineMap[y].push(item.str);
+        });
+
+        const lines = Object.keys(lineMap)
+          .sort((a, b) => b - a)
+          .map(y => lineMap[y].join(" "));
+        reconstructedLines.push(...lines);
       }
+
+      fullText = reconstructedLines.join("\n");
 
       // Extract PO Number
       const poMatch = fullText.match(/Purchase Order (\d+)/i);
       const poNumber = poMatch ? poMatch[1] : "Unknown";
 
-      // Find all lines that start with a 6-digit Product ID
-      const lines = fullText.split("\n");
-      const productLines = lines.filter(line => /^\d{6}\s/.test(line));
+      // Filter product lines
+      const productLines = reconstructedLines.filter(line =>
+        /^\d{6}\s/.test(line) && /\b(Piece|Kilo)\b/.test(line)
+      );
 
       const extractedRows = [];
 
@@ -62,7 +71,7 @@
         }
       });
 
-      // Build HTML Table
+      // Display result
       let html = `<h3>PO Number: ${poNumber}</h3>`;
       html += `<table><thead><tr><th>Product ID</th><th>Item Name</th><th>Quantity</th><th>Vendor</th></tr></thead><tbody>`;
       extractedRows.forEach(row => {
@@ -71,7 +80,7 @@
       html += `</tbody></table>`;
       document.getElementById("outputTable").innerHTML = html;
 
-      // Enable CSV Download
+      // Enable CSV download
       const downloadBtn = document.getElementById("downloadBtn");
       if (extractedRows.length > 0) {
         downloadBtn.style.display = "inline-block";
