@@ -12,22 +12,34 @@ document.getElementById('pdfInput').addEventListener('change', async function ()
     fullText += textContent.items.map(item => item.str).join(" ") + "\n";
   }
 
-  // Simple line-based extract (customize as needed)
+  // Extract PO Number
+  const poMatch = fullText.match(/Purchase Order (\d+)/i);
+  const poNumber = poMatch ? poMatch[1] : "Unknown";
+
+  // Extract product lines
   const lines = fullText.split("\n");
-  const relevant = lines.filter(line =>
-    /\d{6,}/.test(line) && /\b(?:Piece|Kilo)\b/.test(line)
+  const productLines = lines.filter(line =>
+    /^\d{6,}/.test(line) && /\b(?:Piece|Kilo)\b/.test(line)
   );
 
-  let html = "<table><thead><tr><th>Product ID</th><th>Item Name</th><th>Qty</th></tr></thead><tbody>";
-  relevant.forEach(line => {
+  // Build the table
+  let html = `<h3>PO Number: ${poNumber}</h3>`;
+  html += "<table><thead><tr><th>Product ID</th><th>Item Name</th><th>Quantity</th><th>Vendor</th></tr></thead><tbody>";
+
+  productLines.forEach(line => {
     const match = line.match(/^(\d{6,}) (.+?) (\d{1,5}) (?:Piece|Kilo)/);
     if (match) {
       const [_, id, name, qty] = match;
-      html += `<tr><td>${id}</td><td>${name}</td><td>${qty}</td></tr>`;
+
+      // Infer vendor from product name
+      let vendor = "Unknown";
+      if (name.toLowerCase().includes("kilimohai")) vendor = "Kilimohai";
+      else if (name.toLowerCase().includes("sylvia")) vendor = "Sylvia Basket";
+
+      html += `<tr><td>${id}</td><td>${name}</td><td>${qty}</td><td>${vendor}</td></tr>`;
     }
   });
-  html += "</tbody></table>";
 
+  html += "</tbody></table>";
   document.getElementById("outputTable").innerHTML = html;
 });
-
