@@ -10,6 +10,15 @@
   <a href="dashboard-products.html" class="nav-link" id="nav-products">Products</a>
   <a href="dashboard-pdf.html" class="nav-link" id="nav-pdf">Upload PDF</a>
 </nav>
+  <script>
+  const currentPage = window.location.pathname;
+
+  if (currentPage.includes("products")) {
+    document.getElementById("nav-products").classList.add("active");
+  } else if (currentPage.includes("pdf")) {
+    document.getElementById("nav-pdf").classList.add("active");
+  }
+</script>
   <div class="container">
     <h2>Upload Purchase Order (PDF)</h2>
     <input type="file" id="pdfInput" accept="application/pdf" />
