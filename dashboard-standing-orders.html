@@ -1,119 +1,217 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Standing Orders</title>
+  <title>Standing Orders Dashboard</title>
   <meta charset="UTF-8" />
-  <link rel="stylesheet" href="css/style.css" />
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+    }
+    h2 {
+      margin-bottom: 10px;
+    }
+    .vendor-card {
+      border: 1px solid #ccc;
+      padding: 15px;
+      margin-bottom: 20px;
+      border-radius: 8px;
+    }
+    .vendor-header {
+      font-weight: bold;
+      font-size: 1.2em;
+    }
     table {
       width: 100%;
       border-collapse: collapse;
-      margin-top: 20px;
+      margin-top: 10px;
     }
     th, td {
-      padding: 8px 12px;
+      padding: 8px;
       border: 1px solid #ccc;
     }
     th {
-      background-color: #f5f5f5;
+      background: #f0f0f0;
     }
-    .highlight {
-      background-color: #ffe0e0;
+    .add-btn, .action-btn {
+      margin-top: 10px;
+      padding: 8px 12px;
+      font-size: 0.95em;
+      cursor: pointer;
+      border: none;
+      border-radius: 6px;
+      background-color: #007bff;
+      color: white;
+    }
+    .popup {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: white;
+      border: 2px solid #ccc;
+      padding: 20px;
+      z-index: 1000;
+      display: none;
+      width: 300px;
+      border-radius: 10px;
+    }
+    .popup input {
+      width: 100%;
+      padding: 6px;
+      margin-bottom: 10px;
+    }
+    .popup h3 {
+      margin-top: 0;
+    }
+    .overlay {
+      display: none;
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(0,0,0,0.3);
+      z-index: 999;
+    }
+    .action-icon {
+      width: 38px;
+      height: 38px;
+      font-size: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background-color: #eee;
+      border: 1px solid #aaa;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    .action-icon:hover {
+      background-color: #ddd;
     }
   </style>
 </head>
 <body>
-  <nav class="navbar">
-    <a href="dashboard-products.html" class="nav-link" id="nav-products">Products</a>
-    <a href="dashboard-pdf.html" class="nav-link" id="nav-pdf">Upload PDF</a>
-    <a href="dashboard-standing-orders.html" class="nav-link" id="nav-standing">Standing Orders</a>
-  </nav>
-  <script>
-    const currentPage = window.location.pathname;
-    if (currentPage.includes("products")) {
-      document.getElementById("nav-products").classList.add("active");
-    } else if (currentPage.includes("pdf")) {
-      document.getElementById("nav-pdf").classList.add("active");
-    } else if (currentPage.includes("standing")) {
-      document.getElementById("nav-standing").classList.add("active");
-    }
-  </script>
+  <h2>Standing Orders</h2>
+  <button class="add-btn" onclick="openVendorPopup()">+ Add New Vendor</button>
 
-  <div class="container">
-    <h2>Upload Standing Orders (Excel)</h2>
-    <input type="file" id="excelInput" accept=".xlsx, .xls" />
-    <div id="output"></div>
+  <div id="vendorsContainer"></div>
+
+  <!-- Vendor Popup -->
+  <div class="overlay" id="overlay"></div>
+  <div class="popup" id="vendorPopup">
+    <h3>Add New Vendor</h3>
+    <input type="text" id="vendorName" placeholder="Vendor Name" />
+    <input type="text" id="vendorContact" placeholder="Contact" />
+    <button onclick="saveVendor()">Save Vendor</button>
+    <button onclick="closeVendorPopup()">Cancel</button>
   </div>
 
   <script>
-    document.getElementById('excelInput').addEventListener('change', function(e) {
-      const file = e.target.files[0];
-      if (!file) return;
+    let vendors = JSON.parse(localStorage.getItem('standingOrders')) || [];
 
-      const reader = new FileReader();
-      reader.onload = function(evt) {
-        const data = new Uint8Array(evt.target.result);
-        const workbook = XLSX.read(data, { type: 'array' });
-        const sheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[sheetName];
-        const json = XLSX.utils.sheet_to_json(worksheet);
-
-        const parsed = [];
-
-        json.forEach(row => {
-          const supplier = row['SUPPLIER'] || '';
-          const contact = row['CONTACT'] || '';
-          const products = String(row['PRODUCT'] || '').split(' / ');
-          const quantities = String(row['QUANTITIES'] || '').split(' / ');
-          const deliveryDays = String(row['DELIVERY DAYS'] || '').split(' / ');
-
-          const maxLength = Math.max(products.length, quantities.length, deliveryDays.length);
-
-          for (let i = 0; i < maxLength; i++) {
-            parsed.push({
-              supplier,
-              contact,
-              product: products[i] ? products[i].trim() : '',
-              quantity: quantities[i] ? quantities[i].trim() : '',
-              day: deliveryDays[i] ? deliveryDays[i].trim() : ''
-            });
-          }
-        });
-
-        renderTable(parsed);
-      };
-      reader.readAsArrayBuffer(file);
-    });
-
-    function renderTable(data) {
-      const table = document.createElement('table');
-      table.innerHTML = `
-        <thead>
-          <tr>
-            <th>Supplier</th>
-            <th>Contact</th>
-            <th>Product</th>
-            <th>Quantity</th>
-            <th>Delivery Day</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${data.map(row => `
-            <tr>
-              <td>${row.supplier}</td>
-              <td>${row.contact}</td>
-              <td>${row.product}</td>
-              <td>${row.quantity}</td>
-              <td>${row.day}</td>
-            </tr>
-          `).join('')}
-        </tbody>
-      `;
-      document.getElementById('output').innerHTML = '';
-      document.getElementById('output').appendChild(table);
+    function saveVendorsToStorage() {
+      localStorage.setItem('standingOrders', JSON.stringify(vendors));
     }
+
+    function openVendorPopup() {
+      document.getElementById('overlay').style.display = 'block';
+      document.getElementById('vendorPopup').style.display = 'block';
+    }
+
+    function closeVendorPopup() {
+      document.getElementById('overlay').style.display = 'none';
+      document.getElementById('vendorPopup').style.display = 'none';
+      document.getElementById('vendorName').value = '';
+      document.getElementById('vendorContact').value = '';
+    }
+
+    function saveVendor() {
+      const name = document.getElementById('vendorName').value.trim();
+      const contact = document.getElementById('vendorContact').value.trim();
+      if (!name || !contact) return alert('Please fill in all fields.');
+
+      vendors.push({ name, contact, products: [] });
+      saveVendorsToStorage();
+      renderVendors();
+      closeVendorPopup();
+    }
+
+    function renderVendors() {
+      const container = document.getElementById('vendorsContainer');
+      container.innerHTML = '';
+      vendors.forEach((vendor, vendorIndex) => {
+        const div = document.createElement('div');
+        div.className = 'vendor-card';
+        div.innerHTML = `
+          <div class="vendor-header">${vendor.name} - ${vendor.contact}</div>
+          <table>
+            <thead>
+              <tr><th>Product</th><th>Quantity</th><th>Order Day</th><th>Delivery Day</th><th>Actions</th></tr>
+            </thead>
+            <tbody>
+              ${vendor.products.map((p, i) => `
+                <tr>
+                  <td>${p.product}</td>
+                  <td>${p.quantity}</td>
+                  <td>${p.orderDay}</td>
+                  <td>${p.deliveryDay}</td>
+                  <td>
+                    <button class="action-icon" onclick="editProduct(${vendorIndex}, ${i})">✏️</button>
+                    <button class="action-icon" onclick="deleteProduct(${vendorIndex}, ${i})">🗑️</button>
+                  </td>
+                </tr>`).join('')}
+            </tbody>
+          </table>
+          <div>
+            <input placeholder="Product" id="prod-${vendorIndex}" />
+            <input placeholder="Qty" id="qty-${vendorIndex}" style="width:60px;" />
+            <input placeholder="Order Day" id="od-${vendorIndex}" style="width:90px;" />
+            <input placeholder="Delivery Day" id="dd-${vendorIndex}" style="width:100px;" />
+            <button class="add-btn" onclick="addProduct(${vendorIndex})">+ Add Product</button>
+          </div>
+        `;
+        container.appendChild(div);
+      });
+    }
+
+    function addProduct(index) {
+      const product = document.getElementById(`prod-${index}`).value.trim();
+      const quantity = document.getElementById(`qty-${index}`).value.trim();
+      const orderDay = document.getElementById(`od-${index}`).value.trim();
+      const deliveryDay = document.getElementById(`dd-${index}`).value.trim();
+      if (!product || !quantity || !orderDay || !deliveryDay) return alert("Fill all product fields.");
+      vendors[index].products.push({ product, quantity, orderDay, deliveryDay });
+      saveVendorsToStorage();
+      renderVendors();
+    }
+
+    function deleteProduct(vendorIndex, productIndex) {
+      if (!confirm("Delete this product?")) return;
+      vendors[vendorIndex].products.splice(productIndex, 1);
+      saveVendorsToStorage();
+      renderVendors();
+    }
+
+    function editProduct(vendorIndex, productIndex) {
+      const p = vendors[vendorIndex].products[productIndex];
+      const newProduct = prompt("Product name:", p.product);
+      if (newProduct === null) return;
+      const newQty = prompt("Quantity:", p.quantity);
+      if (newQty === null) return;
+      const newOD = prompt("Order Day:", p.orderDay);
+      if (newOD === null) return;
+      const newDD = prompt("Delivery Day:", p.deliveryDay);
+      if (newDD === null) return;
+      vendors[vendorIndex].products[productIndex] = {
+        product: newProduct.trim(),
+        quantity: newQty.trim(),
+        orderDay: newOD.trim(),
+        deliveryDay: newDD.trim()
+      };
+      saveVendorsToStorage();
+      renderVendors();
+    }
+
+    renderVendors();
   </script>
 </body>
 </html>
-
