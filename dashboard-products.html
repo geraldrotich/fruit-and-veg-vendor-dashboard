@@ -3,12 +3,13 @@
 <head>
   <title>Product-Vendor Dashboard</title>
   <link rel="stylesheet" href="css/style.css">
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
+  <!-- Navbar -->
   <nav class="navbar">
     <a href="dashboard-products.html" class="nav-link" id="nav-products">Products</a>
     <a href="dashboard-pdf.html" class="nav-link" id="nav-pdf">Upload PDF</a>
+    <a href="dashboard-standing-orders.html" class="nav-link" id="nav-standing">Standing Orders</a>
   </nav>
   <script>
     const currentPage = window.location.pathname;
@@ -16,65 +17,83 @@
       document.getElementById("nav-products").classList.add("active");
     } else if (currentPage.includes("pdf")) {
       document.getElementById("nav-pdf").classList.add("active");
+    } else if (currentPage.includes("standing")) {
+      document.getElementById("nav-standing").classList.add("active");
     }
   </script>
 
+  <!-- Main Content -->
   <div class="container">
-    <h2>Products & Their Vendors</h2>
-    <div id="products"></div>
-    <div class="vendor-list" id="vendors"></div>
-    <canvas id="vendorChart" width="600"></canvas>
+    <h2>Products & Vendors</h2>
+
+    <button onclick="showNewProductForm()">+ New Product</button>
+    <div id="products" style="margin-top: 20px;"></div>
+    <div id="vendors" class="vendor-list" style="margin-top: 30px;"></div>
+
+    <!-- New Product Form -->
+    <div id="newProductForm" style="display:none; margin-top: 30px;">
+      <h3>Add New Product</h3>
+      <input type="text" id="productName" placeholder="Product name"><br><br>
+      <textarea id="vendorList" placeholder="Vendors (comma separated)"></textarea><br><br>
+      <button onclick="addProduct()">Save Product</button>
+      <button onclick="cancelForm()">Cancel</button>
+    </div>
   </div>
 
   <script>
-    const data = {
+    // Load from localStorage if available
+    const storedData = localStorage.getItem("productVendorData");
+    const data = storedData ? JSON.parse(storedData) : {
       "Tomatoes": ["Vendor A", "Vendor B", "Vendor C"],
-      "Onions": ["Vendor B", "Vendor D"],
-      "Cucumbers": ["Vendor A", "Vendor C"]
+      "Onions": ["Vendor B", "Vendor D"]
     };
 
     const productContainer = document.getElementById('products');
     const vendorContainer = document.getElementById('vendors');
 
-    Object.keys(data).forEach(product => {
-      const div = document.createElement('div');
-      div.className = 'product';
-      div.innerText = product;
-      div.onclick = () => showVendors(product);
-      productContainer.appendChild(div);
-    });
-
-    const ctx = document.getElementById('vendorChart').getContext('2d');
-    let vendorChart = new Chart(ctx, {
-      type: 'bar',
-      data: {
-        labels: [],
-        datasets: [{
-          label: '',
-          data: [],
-          backgroundColor: '#42a5f5'
-        }]
-      },
-      options: {
-        scales: {
-          y: {
-            beginAtZero: true,
-            ticks: { stepSize: 1 }
-          }
-        }
-      }
-    });
+    function renderProducts() {
+      productContainer.innerHTML = '';
+      Object.keys(data).forEach(product => {
+        const btn = document.createElement('button');
+        btn.className = 'product';
+        btn.innerText = product;
+        btn.onclick = () => showVendors(product);
+        productContainer.appendChild(btn);
+      });
+    }
 
     function showVendors(product) {
       const vendors = data[product];
-      vendorContainer.innerHTML = `<h3>Vendors for ${product}</h3><ul>` +
-        vendors.map(v => `<li>${v}</li>`).join('') + '</ul>';
-
-      vendorChart.data.labels = vendors;
-      vendorChart.data.datasets[0].data = vendors.map(() => 1);
-      vendorChart.data.datasets[0].label = `Vendors for ${product}`;
-      vendorChart.update();
+      vendorContainer.innerHTML = `<h3>Vendors for "${product}"</h3><ul>` +
+        vendors.map(v => `<li>${v}</li>`).join('') + `</ul>`;
     }
+
+    function showNewProductForm() {
+      document.getElementById("newProductForm").style.display = "block";
+    }
+
+    function cancelForm() {
+      document.getElementById("productName").value = '';
+      document.getElementById("vendorList").value = '';
+      document.getElementById("newProductForm").style.display = "none";
+    }
+
+    function addProduct() {
+      const name = document.getElementById("productName").value.trim();
+      const vendors = document.getElementById("vendorList").value.split(',').map(v => v.trim()).filter(v => v);
+
+      if (!name || vendors.length === 0) {
+        alert("Please enter a product name and at least one vendor.");
+        return;
+      }
+
+      data[name] = vendors;
+      localStorage.setItem("productVendorData", JSON.stringify(data));
+      cancelForm();
+      renderProducts();
+    }
+
+    renderProducts();
   </script>
 </body>
 </html>
