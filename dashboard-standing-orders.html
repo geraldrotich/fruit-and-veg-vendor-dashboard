@@ -1,1 +1,119 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Standing Orders</title>
+  <meta charset="UTF-8" />
+  <link rel="stylesheet" href="css/style.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <style>
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+    }
+    th, td {
+      padding: 8px 12px;
+      border: 1px solid #ccc;
+    }
+    th {
+      background-color: #f5f5f5;
+    }
+    .highlight {
+      background-color: #ffe0e0;
+    }
+  </style>
+</head>
+<body>
+  <nav class="navbar">
+    <a href="dashboard-products.html" class="nav-link" id="nav-products">Products</a>
+    <a href="dashboard-pdf.html" class="nav-link" id="nav-pdf">Upload PDF</a>
+    <a href="dashboard-standing-orders.html" class="nav-link" id="nav-standing">Standing Orders</a>
+  </nav>
+  <script>
+    const currentPage = window.location.pathname;
+    if (currentPage.includes("products")) {
+      document.getElementById("nav-products").classList.add("active");
+    } else if (currentPage.includes("pdf")) {
+      document.getElementById("nav-pdf").classList.add("active");
+    } else if (currentPage.includes("standing")) {
+      document.getElementById("nav-standing").classList.add("active");
+    }
+  </script>
+
+  <div class="container">
+    <h2>Upload Standing Orders (Excel)</h2>
+    <input type="file" id="excelInput" accept=".xlsx, .xls" />
+    <div id="output"></div>
+  </div>
+
+  <script>
+    document.getElementById('excelInput').addEventListener('change', function(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(evt) {
+        const data = new Uint8Array(evt.target.result);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const json = XLSX.utils.sheet_to_json(worksheet);
+
+        const parsed = [];
+
+        json.forEach(row => {
+          const supplier = row['SUPPLIER'] || '';
+          const contact = row['CONTACT'] || '';
+          const products = String(row['PRODUCT'] || '').split(' / ');
+          const quantities = String(row['QUANTITIES'] || '').split(' / ');
+          const deliveryDays = String(row['DELIVERY DAYS'] || '').split(' / ');
+
+          const maxLength = Math.max(products.length, quantities.length, deliveryDays.length);
+
+          for (let i = 0; i < maxLength; i++) {
+            parsed.push({
+              supplier,
+              contact,
+              product: products[i] ? products[i].trim() : '',
+              quantity: quantities[i] ? quantities[i].trim() : '',
+              day: deliveryDays[i] ? deliveryDays[i].trim() : ''
+            });
+          }
+        });
+
+        renderTable(parsed);
+      };
+      reader.readAsArrayBuffer(file);
+    });
+
+    function renderTable(data) {
+      const table = document.createElement('table');
+      table.innerHTML = `
+        <thead>
+          <tr>
+            <th>Supplier</th>
+            <th>Contact</th>
+            <th>Product</th>
+            <th>Quantity</th>
+            <th>Delivery Day</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${data.map(row => `
+            <tr>
+              <td>${row.supplier}</td>
+              <td>${row.contact}</td>
+              <td>${row.product}</td>
+              <td>${row.quantity}</td>
+              <td>${row.day}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      `;
+      document.getElementById('output').innerHTML = '';
+      document.getElementById('output').appendChild(table);
+    }
+  </script>
+</body>
+</html>
 
