@@ -1,119 +1,63 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>PDF Upload Dashboard</title>
+  <title>PDF Parser Debug</title>
   <meta charset="utf-8" />
-  <link rel="stylesheet" href="css/style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; }
+    #rawLines { max-height: 300px; overflow-y: scroll; border: 1px solid #ccc; padding: 10px; }
+    .matched { background-color: #d4f8d4; }
+    .unmatched { background-color: #f8d4d4; }
+    .toggle-btn { margin-bottom: 10px; padding: 6px; }
+  </style>
 </head>
 <body>
-  <nav class="navbar">
-    <a href="dashboard-products.html" class="nav-link" id="nav-products">Products</a>
-    <a href="dashboard-pdf.html" class="nav-link" id="nav-pdf">Upload PDF</a>
-  </nav>
+  <h2>PDF Parser Debug Dashboard</h2>
+  <input type="file" id="pdfInput" accept="application/pdf" /><br/><br/>
+  <button class="toggle-btn" onclick="toggleRaw()">Toggle Raw Parsed Lines</button>
+
+  <div id="debugInfo"></div>
+  <div id="rawLines" style="display:none"></div>
+
   <script>
-    const currentPage = window.location.pathname;
-    if (currentPage.includes("products")) {
-      document.getElementById("nav-products").classList.add("active");
-    } else if (currentPage.includes("pdf")) {
-      document.getElementById("nav-pdf").classList.add("active");
+    let rawLinesEl = document.getElementById('rawLines');
+    let debugInfoEl = document.getElementById('debugInfo');
+
+    function toggleRaw(){
+      rawLinesEl.style.display = rawLinesEl.style.display === 'none' ? 'block' : 'none';
     }
-  </script>
 
-  <div class="container">
-    <h2>Upload Purchase Order (PDF)</h2>
-    <input type="file" id="pdfInput" accept="application/pdf" />
-    <button id="downloadBtn" style="display:none;">Download CSV</button>
-    <div id="outputTable"></div>
-  </div>
-
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
-  <script>
-    document.getElementById('pdfInput').addEventListener('change', async function () {
+    document.getElementById('pdfInput').addEventListener('change', async function(){
       const file = this.files[0];
-      if (!file) return;
+      if (!file) return alert("Please upload a PDF");
 
-      const arrayBuffer = await file.arrayBuffer();
-      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      const data = new Uint8Array(await file.arrayBuffer());
+      const pdf = await pdfjsLib.getDocument({ data }).promise;
 
       let lines = [];
-
-      for (let i = 1; i <= pdf.numPages; i++) {
+      for (let i = 1; i <= pdf.numPages; i++){
         const page = await pdf.getPage(i);
         const content = await page.getTextContent();
-        const items = content.items.map(item => item.str.trim()).filter(Boolean);
-        lines.push(...items);
+        content.items.forEach(item => {
+          let str = item.str.trim();
+          if (str) lines.push(str);
+        });
       }
 
-      const fullText = lines.join(" ");
+      debugInfoEl.innerHTML = `<p>Total lines extracted: ${lines.length}</p>`;
 
-      const poMatch = fullText.match(/Purchase Order (\d+)/i);
-      const poNumber = poMatch ? poMatch[1] : "Unknown";
+      const regex = /^\d{6}\s+(.+?)\s+(\d{1,5})\s+(Piece|Kilo)/i;
+      let matchedCount = 0;
 
-      let vendorName = "Unknown Vendor";
-      const shipToIndex = lines.findIndex(line => /Ship-to Address/i.test(line));
-      if (shipToIndex >= 0 && shipToIndex + 1 < lines.length) {
-        vendorName = lines[shipToIndex + 1].trim();
-      }
+      rawLinesEl.innerHTML = lines.map(line => {
+        const isMatch = regex.test(line);
+        if (isMatch) matchedCount++;
+        const cls = isMatch ? 'matched' : 'unmatched';
+        return `<div class="${cls}">${line}</div>`;
+      }).join('');
 
-      const blocks = [];
-      let buffer = [];
-
-      for (let i = 0; i < lines.length; i++) {
-        const line = lines[i];
-        if (/^\d{6}\b/.test(line)) {
-          if (buffer.length) blocks.push(buffer);
-          buffer = [line];
-        } else if (/^\d+\s+(Piece|Kilo)/.test(line)) {
-          buffer.push(line);
-          blocks.push(buffer);
-          buffer = [];
-        } else {
-          buffer.push(line);
-        }
-      }
-      if (buffer.length) blocks.push(buffer);
-
-      const extractedRows = [];
-
-      blocks.forEach(block => {
-        const joined = block.join(" ");
-        const match = joined.match(/^(\d{6})\s+(.+?)\s+(\d{1,5})\s+(?:Piece|Kilo)/);
-        if (match) {
-          const productId = match[1];
-          const itemName = match[2].replace(/\s{2,}/g, " ");
-          const quantity = match[3];
-          extractedRows.push({ productId, itemName, quantity });
-        }
-      });
-
-      let html = `<h3>PO Number: ${poNumber}</h3><h4>Vendor: ${vendorName}</h4>`;
-      html += `<table><thead><tr><th>Product ID</th><th>Item Name</th><th>Quantity</th></tr></thead><tbody>`;
-      extractedRows.forEach(row => {
-        html += `<tr><td>${row.productId}</td><td>${row.itemName}</td><td>${row.quantity}</td></tr>`;
-      });
-      html += `</tbody></table>`;
-      document.getElementById("outputTable").innerHTML = html;
-
-      const downloadBtn = document.getElementById("downloadBtn");
-      if (extractedRows.length) {
-        downloadBtn.style.display = "inline-block";
-        downloadBtn.onclick = () => {
-          let csv = `PO Number,${poNumber}\nVendor,${vendorName}\n\nProduct ID,Item Name,Quantity\n`;
-          extractedRows.forEach(row => {
-            csv += `"${row.productId}","${row.itemName}","${row.quantity}"\n`;
-          });
-          const blob = new Blob([csv], { type: "text/csv" });
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement("a");
-          a.href = url;
-          a.download = `PO_${poNumber}_${vendorName.replace(/\s+/g, '_')}.csv`;
-          a.click();
-          URL.revokeObjectURL(url);
-        };
-      } else {
-        downloadBtn.style.display = "none";
-        alert("No product lines found.");
-      }
+      debugInfoEl.innerHTML += `<p>Lines matching product pattern: ${matchedCount}</p>`;
     });
   </script>
 </body>
