@@ -2,7 +2,42 @@
 <html>
 <head>
   <title>Product-Vendor Dashboard</title>
+  <meta charset="UTF-8">
   <link rel="stylesheet" href="css/style.css">
+  <style>
+    .product-button {
+      display: inline-block;
+      background-color: #333;
+      color: white;
+      padding: 10px 15px;
+      margin: 5px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    .product-button:hover {
+      background-color: #555;
+    }
+    .action-btn {
+      margin-left: 10px;
+      padding: 4px 8px;
+      font-size: 0.9em;
+      cursor: pointer;
+      border: none;
+      border-radius: 4px;
+    }
+    .edit-btn {
+      background-color: #2196F3;
+      color: white;
+    }
+    .delete-btn {
+      background-color: #e53935;
+      color: white;
+    }
+    #editProductForm, #newProductForm {
+      margin-top: 30px;
+    }
+  </style>
 </head>
 <body>
   <!-- Navbar -->
@@ -31,21 +66,29 @@
     <div id="vendors" class="vendor-list" style="margin-top: 30px;"></div>
 
     <!-- New Product Form -->
-    <div id="newProductForm" style="display:none; margin-top: 30px;">
+    <div id="newProductForm" style="display:none;">
       <h3>Add New Product</h3>
       <input type="text" id="productName" placeholder="Product name"><br><br>
       <textarea id="vendorList" placeholder="Vendors (comma separated)"></textarea><br><br>
       <button onclick="addProduct()">Save Product</button>
       <button onclick="cancelForm()">Cancel</button>
     </div>
+
+    <!-- Edit Product Form -->
+    <div id="editProductForm" style="display:none;">
+      <h3>Edit Product</h3>
+      <input type="text" id="editProductName" placeholder="Product name" disabled><br><br>
+      <textarea id="editVendorList" placeholder="Vendors (comma separated)"></textarea><br><br>
+      <button onclick="saveEdit()">Save Changes</button>
+      <button onclick="cancelEdit()">Cancel</button>
+    </div>
   </div>
 
   <script>
-    // Load from localStorage if available
     const storedData = localStorage.getItem("productVendorData");
     const data = storedData ? JSON.parse(storedData) : {
-      "Tomatoes": ["Vendor A", "Vendor B", "Vendor C"],
-      "Onions": ["Vendor B", "Vendor D"]
+      "Tomatoes": ["Vendor A", "Vendor B"],
+      "Onions": ["Vendor C"]
     };
 
     const productContainer = document.getElementById('products');
@@ -53,28 +96,48 @@
 
     function renderProducts() {
       productContainer.innerHTML = '';
+      vendorContainer.innerHTML = '';
       Object.keys(data).forEach(product => {
         const btn = document.createElement('button');
-        btn.className = 'product';
+        btn.className = 'product-button';
         btn.innerText = product;
         btn.onclick = () => showVendors(product);
-        productContainer.appendChild(btn);
+
+        const edit = document.createElement('button');
+        edit.className = 'action-btn edit-btn';
+        edit.innerText = 'Edit';
+        edit.onclick = () => editProduct(product);
+
+        const del = document.createElement('button');
+        del.className = 'action-btn delete-btn';
+        del.innerText = 'Delete';
+        del.onclick = () => deleteProduct(product);
+
+        const wrapper = document.createElement('div');
+        wrapper.appendChild(btn);
+        wrapper.appendChild(edit);
+        wrapper.appendChild(del);
+        productContainer.appendChild(wrapper);
       });
     }
 
     function showVendors(product) {
+      document.getElementById("editProductForm").style.display = "none";
+      document.getElementById("newProductForm").style.display = "none";
       const vendors = data[product];
       vendorContainer.innerHTML = `<h3>Vendors for "${product}"</h3><ul>` +
         vendors.map(v => `<li>${v}</li>`).join('') + `</ul>`;
     }
 
     function showNewProductForm() {
+      vendorContainer.innerHTML = '';
       document.getElementById("newProductForm").style.display = "block";
+      document.getElementById("editProductForm").style.display = "none";
+      document.getElementById("productName").value = '';
+      document.getElementById("vendorList").value = '';
     }
 
     function cancelForm() {
-      document.getElementById("productName").value = '';
-      document.getElementById("vendorList").value = '';
       document.getElementById("newProductForm").style.display = "none";
     }
 
@@ -87,10 +150,47 @@
         return;
       }
 
+      if (data[name]) {
+        alert("Product already exists. Use Edit instead.");
+        return;
+      }
+
       data[name] = vendors;
       localStorage.setItem("productVendorData", JSON.stringify(data));
       cancelForm();
       renderProducts();
+    }
+
+    function editProduct(product) {
+      document.getElementById("newProductForm").style.display = "none";
+      document.getElementById("editProductForm").style.display = "block";
+      document.getElementById("editProductName").value = product;
+      document.getElementById("editVendorList").value = data[product].join(', ');
+    }
+
+    function cancelEdit() {
+      document.getElementById("editProductForm").style.display = "none";
+    }
+
+    function saveEdit() {
+      const name = document.getElementById("editProductName").value;
+      const vendors = document.getElementById("editVendorList").value.split(',').map(v => v.trim()).filter(v => v);
+      if (vendors.length === 0) {
+        alert("Vendor list cannot be empty.");
+        return;
+      }
+      data[name] = vendors;
+      localStorage.setItem("productVendorData", JSON.stringify(data));
+      cancelEdit();
+      renderProducts();
+    }
+
+    function deleteProduct(product) {
+      if (confirm(`Delete product "${product}"?`)) {
+        delete data[product];
+        localStorage.setItem("productVendorData", JSON.stringify(data));
+        renderProducts();
+      }
     }
 
     renderProducts();
