@@ -8,9 +8,6 @@
       font-family: Arial, sans-serif;
       padding: 20px;
     }
-    h2 {
-      margin-bottom: 10px;
-    }
     .vendor-card {
       border: 1px solid #ccc;
       padding: 15px;
@@ -18,59 +15,16 @@
       border-radius: 8px;
     }
     .vendor-header {
-      font-weight: bold;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
       font-size: 1.2em;
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-top: 10px;
-    }
-    th, td {
-      padding: 8px;
-      border: 1px solid #ccc;
-    }
-    th {
-      background: #f0f0f0;
-    }
-    .add-btn, .action-btn {
-      margin-top: 10px;
-      padding: 8px 12px;
-      font-size: 0.95em;
-      cursor: pointer;
-      border: none;
-      border-radius: 6px;
-      background-color: #007bff;
-      color: white;
-    }
-    .popup {
-      position: fixed;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      background: white;
-      border: 2px solid #ccc;
-      padding: 20px;
-      z-index: 1000;
-      display: none;
-      width: 300px;
-      border-radius: 10px;
-    }
-    .popup input {
-      width: 100%;
-      padding: 6px;
+      font-weight: bold;
       margin-bottom: 10px;
     }
-    .popup h3 {
-      margin-top: 0;
-    }
-    .overlay {
-      display: none;
-      position: fixed;
-      top: 0; left: 0;
-      width: 100%; height: 100%;
-      background: rgba(0,0,0,0.3);
-      z-index: 999;
+    .vendor-actions {
+      display: flex;
+      gap: 8px;
     }
     .action-icon {
       width: 38px;
@@ -87,6 +41,60 @@
     .action-icon:hover {
       background-color: #ddd;
     }
+    .product-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+    }
+    .product-table th, .product-table td {
+      border: 1px solid #ccc;
+      padding: 8px;
+    }
+    .product-table th {
+      background-color: #f5f5f5;
+    }
+    .form-inline input {
+      margin: 4px 6px 4px 0;
+      padding: 6px;
+    }
+    .add-btn {
+      padding: 6px 12px;
+      margin-top: 6px;
+      border: none;
+      background-color: #007bff;
+      color: white;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    .add-btn:hover {
+      background-color: #0056b3;
+    }
+    .popup, .overlay {
+      display: none;
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+    }
+    .overlay {
+      background: rgba(0, 0, 0, 0.3);
+      z-index: 999;
+    }
+    .popup {
+      z-index: 1000;
+      background: #fff;
+      width: 300px;
+      padding: 20px;
+      border-radius: 8px;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      border: 1px solid #ccc;
+    }
+    .popup input {
+      width: 100%;
+      padding: 6px;
+      margin-bottom: 10px;
+    }
   </style>
 </head>
 <body>
@@ -95,7 +103,6 @@
 
   <div id="vendorsContainer"></div>
 
-  <!-- Vendor Popup -->
   <div class="overlay" id="overlay"></div>
   <div class="popup" id="vendorPopup">
     <h3>Add New Vendor</h3>
@@ -128,24 +135,57 @@
       const name = document.getElementById('vendorName').value.trim();
       const contact = document.getElementById('vendorContact').value.trim();
       if (!name || !contact) return alert('Please fill in all fields.');
-
-      vendors.push({ name, contact, products: [] });
+      vendors.push({ name, contact, products: [], collapsed: false });
       saveVendorsToStorage();
       renderVendors();
       closeVendorPopup();
+    }
+
+    function deleteVendor(index) {
+      if (confirm("Delete this vendor and all their products?")) {
+        vendors.splice(index, 1);
+        saveVendorsToStorage();
+        renderVendors();
+      }
+    }
+
+    function toggleVendor(index) {
+      vendors[index].collapsed = !vendors[index].collapsed;
+      saveVendorsToStorage();
+      renderVendors();
     }
 
     function renderVendors() {
       const container = document.getElementById('vendorsContainer');
       container.innerHTML = '';
       vendors.forEach((vendor, vendorIndex) => {
-        const div = document.createElement('div');
-        div.className = 'vendor-card';
-        div.innerHTML = `
-          <div class="vendor-header">${vendor.name} - ${vendor.contact}</div>
-          <table>
+        const card = document.createElement('div');
+        card.className = 'vendor-card';
+
+        const header = document.createElement('div');
+        header.className = 'vendor-header';
+        header.innerHTML = `
+          <span onclick="toggleVendor(${vendorIndex})" style="cursor:pointer">
+            ${vendor.collapsed ? '▶' : '▼'} ${vendor.name} - ${vendor.contact}
+          </span>
+          <div class="vendor-actions">
+            <button class="action-icon" onclick="deleteVendor(${vendorIndex})">🗑️</button>
+          </div>
+        `;
+        card.appendChild(header);
+
+        if (!vendor.collapsed) {
+          const table = document.createElement('table');
+          table.className = 'product-table';
+          table.innerHTML = `
             <thead>
-              <tr><th>Product</th><th>Quantity</th><th>Order Day</th><th>Delivery Day</th><th>Actions</th></tr>
+              <tr>
+                <th>Product</th>
+                <th>Quantity</th>
+                <th>Order Day</th>
+                <th>Delivery Day</th>
+                <th>Actions</th>
+              </tr>
             </thead>
             <tbody>
               ${vendor.products.map((p, i) => `
@@ -160,16 +200,22 @@
                   </td>
                 </tr>`).join('')}
             </tbody>
-          </table>
-          <div>
+          `;
+          card.appendChild(table);
+
+          const inputForm = document.createElement('div');
+          inputForm.className = 'form-inline';
+          inputForm.innerHTML = `
             <input placeholder="Product" id="prod-${vendorIndex}" />
             <input placeholder="Qty" id="qty-${vendorIndex}" style="width:60px;" />
             <input placeholder="Order Day" id="od-${vendorIndex}" style="width:90px;" />
             <input placeholder="Delivery Day" id="dd-${vendorIndex}" style="width:100px;" />
             <button class="add-btn" onclick="addProduct(${vendorIndex})">+ Add Product</button>
-          </div>
-        `;
-        container.appendChild(div);
+          `;
+          card.appendChild(inputForm);
+        }
+
+        container.appendChild(card);
       });
     }
 
